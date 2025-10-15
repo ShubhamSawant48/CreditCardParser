@@ -49,7 +49,7 @@ First, let's get the server running. Open a terminal and navigate to the project
 cd backend
 
 # Install dependencies (including the specific, stable version of pdf-parse)
-npm install express cors multer pdf-parse@1.1.1
+npm install 
 
 # Start the server
 node server.js or nodemon server.js
