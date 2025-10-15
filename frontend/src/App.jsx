@@ -1,17 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import './App.css'; // We will update the CSS as well
+import './App.css';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Ref to track if the first attempt has been made
+  const isFirstAttempt = useRef(true);
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
     setExtractedData(null);
     setError('');
+    // Reset the attempt tracker when a new file is selected
+    isFirstAttempt.current = true;
   };
 
   const handleUpload = async () => {
@@ -33,12 +38,28 @@ function App() {
         },
       });
       setExtractedData(response.data);
+      isFirstAttempt.current = false; // Mark success
     } catch (err) {
-      const errorMessage = err.response?.data?.error || 'An unexpected error occurred.';
-      setError(errorMessage);
-      setExtractedData(null);
+      // --- ** THE FIX ** ---
+      // If the first attempt fails (the "cold start" error),
+      // we automatically retry it one time after a brief delay.
+      if (isFirstAttempt.current) {
+        isFirstAttempt.current = false; // Prevent retrying more than once
+        setTimeout(() => {
+          handleUpload();
+        }, 500); // 0.5 second delay before retry
+      } else {
+        // If it fails again, it's a real error, so show it.
+        const errorMessage = err.response?.data?.error || 'An unexpected error occurred.';
+        setError(errorMessage);
+        setExtractedData(null);
+        setIsLoading(false);
+      }
     } finally {
-      setIsLoading(false);
+      // Only set loading to false if it's not a retry attempt
+      if (!isFirstAttempt.current) {
+          setIsLoading(false);
+      }
     }
   };
 
@@ -61,7 +82,6 @@ function App() {
       {extractedData && (
         <div className="results-card">
           <div className="card-header">
-            {/* UNIQUE FEATURE: Display the bank logo */}
             <img src={extractedData.logoUrl} alt={`${extractedData.issuer} logo`} className="bank-logo" />
             <h2>Extraction Results</h2>
           </div>
@@ -78,7 +98,6 @@ function App() {
             <strong>Total Amount Due:</strong> <span>₹{extractedData.totalDue}</span>
           </div>
           <div className="card-footer">
-            {/* UNIQUE FEATURE: Display the confidence score */}
             <strong>Confidence:</strong> <span>{extractedData.confidence}</span>
           </div>
         </div>

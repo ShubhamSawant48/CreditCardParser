@@ -1,152 +1,117 @@
-// Import required packages
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const pdf = require('pdf-parse');
 
-// Initialize the Express app
 const app = express();
 const port = 5000;
 
 app.use(cors());
 
-// Setup Multer for file handling in memory
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-/**
- * ================================================================
- * UNIQUE FEATURE 1: Bank logos and organized regex patterns
- * ================================================================
- */
-const bankConfigs = {
-    sbi: {
-        issuer: /SBI Card/,
-        patterns: {
-            last4Digits: /Card Number ending (\d{4})/,
-            statementPeriod: /Statement Period: (\d{2} \w{3} \d{4}-\d{2} \w{3} \d{4})/,
-            dueDate: /Due Date: (\d{2} \w{3} \d{4})/,
-            totalDue: /Total Due: ([\d,]+\.\d{2})/,
-        },
-        logoUrl: 'https://i.imgur.com/Qv9p27j.png' // Example logo URL
-    },
-    icici: {
-        issuer: /ICICI Bank/,
-        patterns: {
-            last4Digits: /ICICI Coral \(XXXX-XXXX-XXXX-(\d{4})\)/,
-            statementPeriod: /Statement Period\s*(\d{2} \w{3} \d{4}- \d{2} \w{3} \d{4})/,
-            dueDate: /Payment Due Date\s*(\d{2} \w{3} \d{4})/,
-            totalDue: /Total Amount Due\s*INR ([\d,]+\.\d{2})/,
-        },
-        logoUrl: 'https://i.imgur.com/83p1J4g.png'
-    },
-    hdfc: {
-        issuer: /HDFC Bank/,
-        patterns: {
-            last4Digits: /Account Number: \d{4}-\d{4}-\d{4}-(\d{4})/,
-            statementPeriod: /Statement Period: (\d{2}-\w{3}-\d{4} to \d{2}-\w{3}-\d{4})/,
-            dueDate: /Payment Due Date: (\d{2}-\w{3}-\d{4})/,
-            totalDue: /Total Amount Due:\s*([\d,]+\.\d{2})/,
-        },
-        logoUrl: 'https://i.imgur.com/LTSaH6p.png'
-    },
-    indusind: {
-        issuer: /Indusind Bank/,
-        patterns: {
-            last4Digits: /Indusind Platinum \(XXXX-XXXX-XXXX-(\d{4})\)/,
-            statementPeriod: /Statement Period: (\d{2} \w{3} \d{4}-\d{2} \w{3} \d{4})/,
-            dueDate: /Payment Due Date: (\d{2} \w{3} \d{4})/,
-            totalDue: /Total Amount Due: INR ([\d,]+\.\d{2})/,
-        },
-        logoUrl: 'https://i.imgur.com/G5l4h02.png'
-    },
-    kotak: {
-        issuer: /Kotak Mahindra Bank/,
-        patterns: {
-            last4Digits: /Kotak Royale \(XXXX-XXXX-XXXX-(\d{4})\)/,
-            statementPeriod: /Statement Period: (\d{2} \w{3} \d{4}-\d{2} \w{3} \d{4})/,
-            dueDate: /Payment Due Date: (\d{2} \w{3} \d{4})/,
-            totalDue: /Total Amount Due: INR ([\d,]+\.\d{2})/,
-        },
-        logoUrl: 'https://i.imgur.com/97y1t60.png'
-    },
+const bankIdentifier = {
+    sbi: { name: 'SBI', logoUrl: 'https://i.imgur.com/Qv9p27j.png' },
+    icici: { name: 'ICICI', logoUrl: 'https://i.imgur.com/83p1J4g.png' },
+    hdfc: { name: 'HDFC', logoUrl: 'https://i.imgur.com/LTSaH6p.png' },
+    indusind: { name: 'Indusind', logoUrl: 'https://i.imgur.com/G5l4h02.png' },
+    kotak: { name: 'Kotak', logoUrl: 'https://i.imgur.com/97y1t60.png' },
+    axis: { name: 'Axis', logoUrl: 'https://i.imgur.com/v12aKqO.png' },
+    citi: { name: 'Citi', logoUrl: 'https://i.imgur.com/2a7x061.png' },
+    amex: { name: 'American Express', logoUrl: 'https://i.imgur.com/2s3otz7.png' },
 };
 
-const parseCreditCardStatement = async (pdfBuffer) => {
-    const data = await pdf(pdfBuffer);
-    const text = data.text;
+const searchPatterns = {
+    totalDue: {
+        keywords: ['total amount due', 'total due', 'new balance', 'statement balance'],
+        regex: /([\d,]+\.\d{2})/
+    },
+    dueDate: {
+        keywords: ['payment due date', 'due date'],
+        regex: /(\d{1,2}[-\s]\w{3}[-\s]\d{4})/i
+    },
+    last4Digits: {
+        keywords: ['card number ending', 'account number:', 'card no\.', 'xxxx-'],
+        regex: /(\d{4})/
+    },
+    statementPeriod: {
+        keywords: ['statement period', 'billing cycle', 'statement date'],
+        regex: /(\d{1,2}[-\s]\w{3}[-\s]\d{2,4}\s*(?:to|-)\s*\d{1,2}[-\s]\w{3}[-\s]\d{2,4})/i
+    }
+};
 
-    let detectedBank = null;
-    for (const bank in bankConfigs) {
-        if (bankConfigs[bank].issuer.test(text)) {
-            detectedBank = bank;
+const universalParser = async (pdfBuffer) => {
+    const data = await pdf(pdfBuffer);
+    
+    const text = data.text;
+    const lines = text.toLowerCase().split('\n');
+
+    let extractedData = {
+        issuer: 'Unknown',
+        logoUrl: 'https://i.imgur.com/r3bJ1gG.png',
+        totalDue: 'N/A',
+        dueDate: 'N/A',
+        last4Digits: 'N/A',
+        statementPeriod: 'N/A'
+    };
+
+    for (const bankKey in bankIdentifier) {
+        if (text.toLowerCase().includes(bankKey)) {
+            extractedData.issuer = bankIdentifier[bankKey].name;
+            extractedData.logoUrl = bankIdentifier[bankKey].logoUrl;
             break;
         }
     }
 
-    if (!detectedBank) {
-        throw new Error("Unsupported statement. Please upload a statement from a supported bank.");
-    }
-    
-    const config = bankConfigs[detectedBank];
-    const patterns = config.patterns;
-    let confidenceScore = 0;
-    const totalFields = Object.keys(patterns).length;
-
-    const extract = (regex) => {
-        const match = text.match(regex);
-        if (match && match[1]) {
-            confidenceScore++; // Increment score if field is found
-            return match[1];
+    for (const key in searchPatterns) {
+        const pattern = searchPatterns[key];
+        for (const line of lines) {
+            for (const keyword of pattern.keywords) {
+                if (line.includes(keyword)) {
+                    const match = line.match(pattern.regex);
+                    if (match && match[0]) {
+                        extractedData[key] = match[0].trim();
+                        if (key === 'last4Digits') {
+                             const digitMatches = line.match(/\d{4}/g);
+                             if (digitMatches) {
+                                extractedData[key] = digitMatches[digitMatches.length - 1];
+                             }
+                        }
+                        break; 
+                    }
+                }
+            }
+            if (extractedData[key] !== 'N/A') break;
         }
-        return 'N/A';
-    };
-
-    let extractedData = {};
-    for (const key in patterns) {
-        extractedData[key] = extract(patterns[key]);
     }
 
-    /**
-     * ================================================================
-     * UNIQUE FEATURE 2: Data Cleaning and Formatting
-     * ================================================================
-     */
-    // Clean the totalDue amount by removing commas
+    let confidenceScore = 0;
     if (extractedData.totalDue !== 'N/A') {
         extractedData.totalDue = extractedData.totalDue.replace(/,/g, '');
+        confidenceScore++;
     }
-    // You could add more formatting here, e.g., for dates
+    if (extractedData.dueDate !== 'N/A') confidenceScore++;
+    if (extractedData.last4Digits !== 'N/A') confidenceScore++;
+    if (extractedData.statementPeriod !== 'N/A') confidenceScore++;
+    extractedData.confidence = `${confidenceScore}/4 fields found`;
 
-    return {
-        issuer: detectedBank.charAt(0).toUpperCase() + detectedBank.slice(1),
-        ...extractedData,
-        logoUrl: config.logoUrl,
-        /**
-         * ================================================================
-         * UNIQUE FEATURE 3: Extraction Confidence Score
-         * ================================================================
-         */
-        confidence: `${confidenceScore}/${totalFields} fields found`,
-    };
+    return extractedData;
 };
 
-// API Endpoint (remains the same)
 app.post('/api/upload', upload.single('statement'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
     }
-
     try {
-        const extractedData = await parseCreditCardStatement(req.file.buffer);
-        res.status(200).json(extractedData);
+        const data = await universalParser(req.file.buffer);
+        res.status(200).json(data);
     } catch (error) {
-        console.error("Error parsing PDF:", error);
-        res.status(500).json({ error: error.message || "Failed to parse the PDF." });
+        console.error("Error parsing PDF:", error.message);
+        res.status(500).json({ error: "This PDF file may be corrupted or password-protected and cannot be read." });
     }
 });
 
-// Start the server
 app.listen(port, () => {
     console.log(`🚀 Server running on http://localhost:${port}`);
 });
