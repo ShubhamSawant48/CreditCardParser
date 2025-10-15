@@ -1,0 +1,155 @@
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f0f2f5;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+}
+
+.container {
+  width: 100%;
+  max-width: 600px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 30px;
+  text-align: center;
+}
+
+header h1 {
+  font-size: 2rem;
+  color: #1a73e8;
+  margin-bottom: 10px;
+}
+
+header p {
+  font-size: 1rem;
+  color: #5f6368;
+  margin-bottom: 30px;
+}
+
+.upload-section {
+  border: 2px dashed #dadce0;
+  border-radius: 8px;
+  padding: 25px;
+  margin-bottom: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+input[type="file"]::file-selector-button {
+  background-color: #f8f9fa;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background-color: #e8eaed;
+}
+
+button {
+  background-image: linear-gradient(to right, #1a73e8, #1c5fde);
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+button:disabled {
+  background: #a0c3ff;
+  cursor: not-allowed;
+}
+
+.results-card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  text-align: left;
+  border: 1px solid #e0e0e0;
+  margin-top: 20px;
+  overflow: hidden; /* Important for child border-radius */
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.bank-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #3c4043;
+}
+
+.result-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px 20px;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-item.total-due {
+  background-color: #e8f0fe;
+  font-weight: bold;
+}
+
+.result-item strong {
+  color: #5f6368;
+}
+
+.result-item span {
+  font-weight: 500;
+  color: #202124;
+}
+
+.card-footer {
+  padding: 10px 20px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.9rem;
+  color: #5f6368;
+  display: flex;
+  justify-content: space-between;
+}
+
+.error-message {
+  color: #d93025;
+  background-color: #fce8e6;
+  border: 1px solid #f9c6c2;
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 20px;
+}
