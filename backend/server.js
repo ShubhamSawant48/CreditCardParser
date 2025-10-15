@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
-// Use the stable, universally compatible version of pdf-parse
 const pdf = require('pdf-parse');
 
 const app = express();
@@ -9,11 +8,11 @@ const port = 5000;
 
 app.use(cors());
 
-// Setup Multer for file handling in memory
+
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// --- Configuration for the Smart Parser ---
+
 const bankIdentifier = {
     sbi: { name: 'SBI', logoUrl: 'https://1000logos.net/wp-content/uploads/2018/03/SBI-Logo.png' },
     icici: { name: 'ICICI', logoUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRp8mXBusladp4eop5YLbiGOpipboZcpsGylw&s' },
@@ -27,8 +26,11 @@ const bankIdentifier = {
 
 const searchPatterns = {
     totalDue: {
-        // ** THE FIX **: Added 'total balance' from your sample PDFs.
         keywords: ['total amount due', 'total due', 'new balance', 'statement balance', 'amount due', 'total balance'],
+        regex: /([\d,]+\.\d{2})/
+    },
+    minimumDue: {
+        keywords: ['minimum amount due', 'minimum due'],
         regex: /([\d,]+\.\d{2})/
     },
     dueDate: {
@@ -36,7 +38,6 @@ const searchPatterns = {
         regex: /(\d{1,2}[-\s]\w{3}[-\s]\d{4})/i
     },
     last4Digits: {
-        // ** THE FIX **: Added 'card (last 4 digits)' from your sample PDFs.
         keywords: ['card number ending', 'account number:', 'card no\.', 'xxxx-', 'card number', 'credit card number', 'card (last 4 digits)'],
         regex: /(\d{4})/
     },
@@ -46,9 +47,7 @@ const searchPatterns = {
     }
 };
 
-// --- The Universal Parsing Function ---
 const universalParser = async (pdfBuffer) => {
-    // This simple, direct call works perfectly with the stable library version.
     const data = await pdf(pdfBuffer);
     
     const text = data.text;
@@ -56,14 +55,15 @@ const universalParser = async (pdfBuffer) => {
 
     let extractedData = {
         issuer: 'Unknown',
-        logoUrl: 'https://i.imgur.com/r3bJ1gG.png', // Generic logo
+        logoUrl: 'https://i.imgur.com/r3bJ1gG.png',
         totalDue: 'N/A',
+        minimumDue: 'N/A', 
         dueDate: 'N/A',
         last4Digits: 'N/A',
         statementPeriod: 'N/A'
     };
 
-    // Step 1: Identify the Bank
+    
     for (const bankKey in bankIdentifier) {
         if (text.toLowerCase().includes(bankKey)) {
             extractedData.issuer = bankIdentifier[bankKey].name;
@@ -72,7 +72,7 @@ const universalParser = async (pdfBuffer) => {
         }
     }
 
-    // Step 2: Extract data using keywords and flexible regex
+    
     for (const key in searchPatterns) {
         const pattern = searchPatterns[key];
         for (const line of lines) {
@@ -95,21 +95,29 @@ const universalParser = async (pdfBuffer) => {
         }
     }
 
-    // Step 3: Clean up data and calculate confidence score
+   
     let confidenceScore = 0;
+    const totalFields = Object.keys(searchPatterns).length;
+
     if (extractedData.totalDue !== 'N/A') {
         extractedData.totalDue = extractedData.totalDue.replace(/,/g, '');
+        confidenceScore++;
+    }
+    
+    if (extractedData.minimumDue !== 'N/A') {
+        extractedData.minimumDue = extractedData.minimumDue.replace(/,/g, '');
         confidenceScore++;
     }
     if (extractedData.dueDate !== 'N/A') confidenceScore++;
     if (extractedData.last4Digits !== 'N/A') confidenceScore++;
     if (extractedData.statementPeriod !== 'N/A') confidenceScore++;
-    extractedData.confidence = `${confidenceScore}/4 fields found`;
+    
+    extractedData.confidence = `${confidenceScore}/${totalFields} fields found`;
 
     return extractedData;
 };
 
-// --- API Endpoint with Robust Error Handling ---
+
 app.post('/api/upload', upload.single('statement'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
@@ -118,14 +126,12 @@ app.post('/api/upload', upload.single('statement'), async (req, res) => {
         const data = await universalParser(req.file.buffer);
         res.status(200).json(data);
     } catch (error) {
-        // This block catches errors from corrupted PDFs (like 'bad XRef entry')
-        // It prevents the server from crashing and sends a clean error to the user.
         console.error("Error parsing PDF:", error.message);
         res.status(500).json({ error: "This PDF file may be corrupted or password-protected and cannot be read." });
     }
 });
 
-// --- Server Startup ---
+
 app.listen(port, () => {
     console.log(`🚀 Server running on http://localhost:${port}`);
 });

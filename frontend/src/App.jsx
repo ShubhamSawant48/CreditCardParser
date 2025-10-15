@@ -8,14 +8,12 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // Ref to track if the first attempt has been made
   const isFirstAttempt = useRef(true);
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
     setExtractedData(null);
     setError('');
-    // Reset the attempt tracker when a new file is selected
     isFirstAttempt.current = true;
   };
 
@@ -38,25 +36,20 @@ function App() {
         },
       });
       setExtractedData(response.data);
-      isFirstAttempt.current = false; // Mark success
+      isFirstAttempt.current = false;
     } catch (err) {
-      // --- ** THE FIX ** ---
-      // If the first attempt fails (the "cold start" error),
-      // we automatically retry it one time after a brief delay.
       if (isFirstAttempt.current) {
-        isFirstAttempt.current = false; // Prevent retrying more than once
+        isFirstAttempt.current = false;
         setTimeout(() => {
           handleUpload();
-        }, 500); // 0.5 second delay before retry
+        }, 500); 
       } else {
-        // If it fails again, it's a real error, so show it.
         const errorMessage = err.response?.data?.error || 'An unexpected error occurred.';
         setError(errorMessage);
         setExtractedData(null);
         setIsLoading(false);
       }
     } finally {
-      // Only set loading to false if it's not a retry attempt
       if (!isFirstAttempt.current) {
           setIsLoading(false);
       }
@@ -94,6 +87,9 @@ function App() {
           <div className="result-item">
             <strong>Payment Due Date:</strong> <span>{extractedData.dueDate}</span>
           </div>
+          <div className="result-item">
+            <strong>Minimum Amount Due:</strong> <span>₹{extractedData.minimumDue}</span>
+          </div>
           <div className="result-item total-due">
             <strong>Total Amount Due:</strong> <span>₹{extractedData.totalDue}</span>
           </div>
@@ -107,3 +103,4 @@ function App() {
 }
 
 export default App;
+
